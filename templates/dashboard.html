@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Cloud Controller - Dashboard</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #2b2d42;
+        }
+        .navbar-custom {
+            background: linear-gradient(90deg, #0d3b66 0%, #001e3d 100%);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+        }
+        .stat-card {
+            border: none;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+        .card-header-custom {
+            background-color: #ffffff;
+            border-bottom: 1px solid #edf2f4;
+            padding: 1rem 1.25rem;
+        }
+        .table-custom th {
+            background-color: #f8f9fa;
+            color: #495057;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-top: none;
+        }
+        .badge-upload { background-color: #0d6efd; }
+        .badge-download { background-color: #198754; }
+        .badge-delete { background-color: #dc3545; }
+        .badge-login { background-color: #0dcaf0; color: #000; }
+        .badge-logout { background-color: #6c757d; }
+        .badge-error { background-color: #d90429; }
+        .badge-system { background-color: #6c757d; }
+        .audit-scroll {
+            max-height: 380px;
+            overflow-y: auto;
+        }
+        .empty-state {
+            padding: 3rem 1.5rem;
+            text-align: center;
+            color: #8d99ae;
+        }
+        .empty-state i {
+            font-size: 3.5rem;
+            color: #adb5bd;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Navigation Header -->
+<nav class="navbar navbar-expand-lg navbar-dark navbar-custom sticky-top py-2">
+    <div class="container-fluid px-4">
+        <a class="navbar-brand d-flex align-items-center fw-bold" href="{{ url_for('dashboard') }}">
+            <i class="bi bi-cloud-arrow-up-fill fs-3 text-info me-2"></i>
+            <span>SaaS Cloud Controller</span>
+            <span class="badge bg-secondary ms-3 text-light fw-normal fs-6">HDFS: {{ hdfs_base_dir }}</span>
+        </a>
+
+        <div class="d-flex align-items-center ms-auto">
+            <span class="navbar-text text-light me-3 small d-none d-md-inline">
+                <i class="bi bi-broadcast me-1 text-success"></i> LAN IP: <strong>{{ lan_ip }}:5000</strong>
+            </span>
+            <div class="dropdown">
+                <button class="btn btn-outline-light btn-sm dropdown-toggle d-flex align-items-center" type="button" id="userMenu" data-bs-dismiss="dropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-person-circle me-1"></i> {{ username }}
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="userMenu">
+                    <li><h6 class="dropdown-header">Operator Session</h6></li>
+                    <li><span class="dropdown-item-text text-muted small"><i class="bi bi-shield-check text-success me-1"></i> Authenticated</span></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item text-danger" href="{{ url_for('logout') }}">
+                            <i class="bi bi-box-arrow-right me-1"></i> Sign Out
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- Main Dashboard Container -->
+<div class="container-fluid px-4 py-4">
+
+    <!-- Flash Alert Notifications -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="row">
+                <div class="col-12">
+                    {% for category, message in messages %}
+                        {% set alert_type = 'danger' if category in ['error', 'danger'] else ('warning' if category == 'warning' else ('success' if category == 'success' else 'info')) %}
+                        <div class="alert alert-{{ alert_type }} alert-dismissible fade show shadow-sm" role="alert">
+                            {% if alert_type == 'danger' %}
+                                <i class="bi bi-exclamation-triangle-fill me-2 fs-5 align-middle"></i>
+                            {% elif alert_type == 'warning' %}
+                                <i class="bi bi-exclamation-circle-fill me-2 fs-5 align-middle"></i>
+                            {% elif alert_type == 'success' %}
+                                <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i>
+                            {% else %}
+                                <i class="bi bi-info-circle-fill me-2 fs-5 align-middle"></i>
+                            {% endif %}
+                            <span class="align-middle">{{ message }}</span>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Top Metrics Overview -->
+    <div class="row g-3 mb-4">
+        <!-- Metric 1: Files -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card bg-white p-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold">HDFS Objects</div>
+                        <h3 class="fw-bold mb-0 text-dark">{{ total_files }}</h3>
+                    </div>
+                    <div class="bg-primary bg-opacity-10 p-3 rounded-circle text-primary">
+                        <i class="bi bi-files fs-3"></i>
+                    </div>
+                </div>
+                <div class="mt-2 small text-muted">Active in <code>{{ hdfs_base_dir }}</code></div>
+            </div>
+        </div>
+
+        <!-- Metric 2: Storage -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card bg-white p-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold">Total Storage</div>
+                        <h3 class="fw-bold mb-0 text-dark">{{ total_bytes_formatted }}</h3>
+                    </div>
+                    <div class="bg-success bg-opacity-10 p-3 rounded-circle text-success">
+                        <i class="bi bi-hdd-stack fs-3"></i>
+                    </div>
+                </div>
+                <div class="mt-2 small text-muted">Distributed HDFS blocks</div>
+            </div>
+        </div>
+
+        <!-- Metric 3: Cluster Status -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card bg-white p-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold">HDFS Cluster</div>
+                        <h3 class="fw-bold mb-0">
+                            {% if hdfs_status == 'CONNECTED' %}
+                                <span class="text-success fs-4"><i class="bi bi-check-circle-fill"></i> Online</span>
+                            {% elif hdfs_status == 'NOT_INSTALLED' %}
+                                <span class="text-warning fs-4"><i class="bi bi-exclamation-triangle-fill"></i> No Binary</span>
+                            {% else %}
+                                <span class="text-danger fs-4"><i class="bi bi-x-circle-fill"></i> Unavailable</span>
+                            {% endif %}
+                        </h3>
+                    </div>
+                    <div class="bg-info bg-opacity-10 p-3 rounded-circle text-info">
+                        <i class="bi bi-cpu fs-3"></i>
+                    </div>
+                </div>
+                <div class="mt-2 small text-muted">Subprocess CLI Interface</div>
+            </div>
+        </div>
+
+        <!-- Metric 4: Limit & Policy -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card bg-white p-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold">Max Upload Policy</div>
+                        <h3 class="fw-bold mb-0 text-dark">16 MB</h3>
+                    </div>
+                    <div class="bg-warning bg-opacity-10 p-3 rounded-circle text-warning">
+                        <i class="bi bi-shield-check fs-3"></i>
+                    </div>
+                </div>
+                <div class="mt-2 small text-muted">Path validation & sanitize enforced</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0 rounded-3">
+                <div class="card-header card-header-custom d-flex align-items-center justify-content-between">
+                    <h5 class="mb-0 fw-bold text-dark">
+                        <i class="bi bi-cloud-arrow-up text-primary me-2"></i> Upload File to HDFS
+                    </h5>
+                    <span class="badge bg-light text-secondary border">Max: 16 MB</span>
+                </div>
+                <div class="card-body p-4 bg-white">
+                    <form id="uploadForm" action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-12 col-md-8 col-lg-9">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-file-earmark-arrow-up"></i></span>
+                                    <input type="file" class="form-control" id="fileInput" name="file" required>
+                                </div>
+                                <div class="form-text text-muted mt-1 small">
+                                    <i class="bi bi-info-circle me-1"></i> File will be spooled to local temporary storage and pushed to <code>{{ hdfs_base_dir }}</code> using <code>hdfs dfs -put -f</code>.
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-4 col-lg-3">
+                                <button type="submit" id="uploadBtn" class="btn btn-primary w-100 fw-semibold">
+                                    <i class="bi bi-arrow-up-circle me-1"></i> Upload to Storage
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Area: Files List & Audit Trail -->
+    <div class="row g-4">
+        <!-- Left Column: File Explorer Table -->
+        <div class="col-12 col-xl-7">
+            <div class="card shadow-sm border-0 rounded-3 h-100">
+                <div class="card-header card-header-custom d-flex align-items-center justify-content-between">
+                    <h5 class="mb-0 fw-bold text-dark">
+                        <i class="bi bi-folder2-open text-primary me-2"></i> HDFS Storage Directory (<code>{{ hdfs_base_dir }}</code>)
+                    </h5>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="location.reload();" title="Refresh listing">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    {% if files and files|length > 0 %}
+                        <div class="table-responsive">
+                            <table class="table table-custom table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" class="ps-3">Filename</th>
+                                        <th scope="col">Size</th>
+                                        <th scope="col">Modified</th>
+                                        <th scope="col">Owner / Perms</th>
+                                        <th scope="col" class="text-end pe-3">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for file in files %}
+                                        <tr>
+                                            <td class="ps-3">
+                                                <div class="d-flex align-items-center">
+                                                    {% if file.is_dir %}
+                                                        <i class="bi bi-folder-fill text-warning fs-5 me-2"></i>
+                                                    {% elif file.name.endswith(('.tar', '.gz', '.zip', '.tgz')) %}
+                                                        <i class="bi bi-file-earmark-zip text-danger fs-5 me-2"></i>
+                                                    {% elif file.name.endswith(('.csv', '.json', '.txt', '.log')) %}
+                                                        <i class="bi bi-file-earmark-text text-success fs-5 me-2"></i>
+                                                    {% elif file.name.endswith(('.png', '.jpg', '.jpeg', '.gif')) %}
+                                                        <i class="bi bi-file-earmark-image text-info fs-5 me-2"></i>
+                                                    {% elif file.name.endswith(('.py', '.sh', '.java', '.c', '.cpp')) %}
+                                                        <i class="bi bi-file-earmark-code text-primary fs-5 me-2"></i>
+                                                    {% else %}
+                                                        <i class="bi bi-file-earmark text-secondary fs-5 me-2"></i>
+                                                    {% endif %}
+                                                    <div>
+                                                        <span class="fw-semibold text-dark text-break">{{ file.name }}</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-light text-dark border" title="{{ file.size_bytes }} bytes">
+                                                    {{ file.size_formatted }}
+                                                </span>
+                                            </td>
+                                            <td class="small text-muted text-nowrap">{{ file.timestamp }}</td>
+                                            <td class="small text-muted font-monospace text-nowrap">
+                                                <code>{{ file.permissions }}</code> ({{ file.owner }})
+                                            </td>
+                                            <td class="text-end pe-3 text-nowrap">
+                                                <!-- Download Button -->
+                                                <a href="{{ url_for('download_file', filename=file.name) }}" class="btn btn-sm btn-outline-primary me-1" title="Download from HDFS">
+                                                    <i class="bi bi-download"></i>
+                                                </a>
+                                                <!-- Delete Button with JavaScript confirmation dialog -->
+                                                <form action="{{ url_for('delete_file', filename=file.name) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this file?');">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete from HDFS">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <!-- Graceful Empty State -->
+                        <div class="empty-state">
+                            <i class="bi bi-cloud-slash d-block mb-3"></i>
+                            <h5 class="fw-semibold text-secondary">No Files in HDFS Directory</h5>
+                            <p class="text-muted small mb-3">The cluster directory <code>{{ hdfs_base_dir }}</code> currently contains no objects.</p>
+                            <label for="fileInput" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-upload me-1"></i> Upload First Dataset
+                            </label>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Audit Trail Panel -->
+        <div class="col-12 col-xl-5">
+            <div class="card shadow-sm border-0 rounded-3 h-100">
+                <div class="card-header card-header-custom d-flex align-items-center justify-content-between">
+                    <h5 class="mb-0 fw-bold text-dark">
+                        <i class="bi bi-journal-text text-primary me-2"></i> Audit Trail (<code>audit.log</code>)
+                    </h5>
+                    <span class="badge bg-secondary">Recent Operations</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="audit-scroll">
+                        {% if recent_logs and recent_logs|length > 0 %}
+                            <table class="table table-sm table-custom table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="ps-3">Action</th>
+                                        <th>Target</th>
+                                        <th>User &bull; IP</th>
+                                        <th class="pe-3">Timestamp</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for log in recent_logs %}
+                                        <tr>
+                                            <td class="ps-3 text-nowrap">
+                                                {% if log.action == 'UPLOAD' %}
+                                                    <span class="badge badge-upload"><i class="bi bi-arrow-up-circle me-1"></i>UPLOAD</span>
+                                                {% elif log.action == 'DOWNLOAD' %}
+                                                    <span class="badge badge-download"><i class="bi bi-arrow-down-circle me-1"></i>DOWNLOAD</span>
+                                                {% elif log.action == 'DELETE' %}
+                                                    <span class="badge badge-delete"><i class="bi bi-trash me-1"></i>DELETE</span>
+                                                {% elif log.action == 'LOGIN' %}
+                                                    <span class="badge badge-login"><i class="bi bi-person-check me-1"></i>LOGIN</span>
+                                                {% elif log.action == 'LOGOUT' %}
+                                                    <span class="badge badge-logout"><i class="bi bi-box-arrow-right me-1"></i>LOGOUT</span>
+                                                {% elif log.action == 'ERROR' %}
+                                                    <span class="badge badge-error"><i class="bi bi-exclamation-triangle me-1"></i>ERROR</span>
+                                                {% else %}
+                                                    <span class="badge badge-system">{{ log.action }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="small text-truncate" style="max-width: 140px;" title="{{ log.file }}">
+                                                <code class="text-dark">{{ log.file }}</code>
+                                            </td>
+                                            <td class="small text-nowrap">
+                                                <span class="fw-semibold">{{ log.user }}</span>
+                                                <div class="text-muted" style="font-size: 0.75rem;">{{ log.ip }}</div>
+                                            </td>
+                                            <td class="small text-muted pe-3 text-nowrap" style="font-size: 0.75rem;">
+                                                {{ log.timestamp }}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <div class="empty-state py-4">
+                                <i class="bi bi-card-checklist d-block mb-2 fs-2"></i>
+                                <p class="text-muted small mb-0">No audit activity recorded yet.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-footer bg-light border-0 py-2 px-3">
+                    <small class="text-muted d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-shield-lock me-1"></i> Audit Compliance Logger</span>
+                        <span>File: <code>audit.log</code></span>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Bootstrap 5 Bundle JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Client-side Validation & Feedback Script -->
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const fileInput = document.getElementById("fileInput");
+        const uploadForm = document.getElementById("uploadForm");
+        const uploadBtn = document.getElementById("uploadBtn");
+        const MAX_SIZE_BYTES = 16 * 1024 * 1024; // 16 MB limit
+
+        if (fileInput) {
+            fileInput.addEventListener("change", function () {
+                if (fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    if (file.size > MAX_SIZE_BYTES) {
+                        alert("File exceeds maximum allowed upload size of 16 MB (" + (file.size / (1024*1024)).toFixed(2) + " MB selected). Please choose a smaller file.");
+                        fileInput.value = "";
+                    }
+                }
+            });
+        }
+
+        if (uploadForm && uploadBtn) {
+            uploadForm.addEventListener("submit", function (e) {
+                if (fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    if (file.size > MAX_SIZE_BYTES) {
+                        e.preventDefault();
+                        alert("Cannot upload: File size exceeds the 16 MB limit.");
+                        return false;
+                    }
+                    uploadBtn.disabled = true;
+                    uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading to HDFS...';
+                }
+            });
+        }
+    });
+</script>
+
+</body>
+</html>

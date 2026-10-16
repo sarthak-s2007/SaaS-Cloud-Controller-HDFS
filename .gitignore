@@ -1,0 +1,13 @@
+# Python Virtual Environment
+venv/
+*.pyc
+__pycache__/
+
+# Temporary upload files & runtime logs
+temp_uploads/*
+!temp_uploads/.gitkeep
+audit.log
+
+# System files
+.DS_Store
+*.swp
